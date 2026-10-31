@@ -257,7 +257,10 @@ impl AboutWindow {
                 ui.vertical_centered(|ui| {
                     ui.heading("JournalTrace");
                     ui.label(format!("{} {}", t(lang, "version"), env!("CARGO_PKG_VERSION")));
-                    ui.hyperlink("https://github.com/ponei/JournalTrace");
+                    ui.hyperlink("https://github.com/duvofan/JournalTraceRust");
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new(t(lang, "original")).weak());
+                    ui.hyperlink("https://github.com/spokwn/JournalTrace");
                 });
                 ui.separator();
                 egui::Grid::new("people").num_columns(3).spacing([16.0, 8.0]).show(ui, |ui| {

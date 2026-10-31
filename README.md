@@ -1,6 +1,6 @@
 # JournalTraceRust
 
-A Rust port of [JournalTrace](https://github.com/ponei/JournalTrace). It parses NTFS USN Journal entries and shows them in a simple user interface.
+A Rust port of [JournalTrace](https://github.com/spokwn/JournalTrace) (spokwn's version of [ponei's original](https://github.com/ponei/JournalTrace)). It parses NTFS USN Journal entries and shows them in a simple user interface.
 
 It is a single `JournalTrace.exe` with no .NET runtime, built with [egui](https://github.com/emilk/egui). Like the original, it must be run as administrator.
 

@@ -4,7 +4,7 @@ version = "2.5.0"
 edition = "2021"
 license = "GPL-3.0-only"
 description = "Parses NTFS USN Journal entries in a simple user interface"
-repository = "https://github.com/ponei/JournalTrace"
+repository = "https://github.com/duvofan/JournalTraceRust"
 
 [lib]
 name = "journaltrace"

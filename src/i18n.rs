@@ -190,6 +190,7 @@ strings! {
     "exact" => ["Exact match", "Correspondência exata", "Tam eşleşme"],
     "startswith" => ["Starts with", "Começa com", "İle başlar"],
     "endswith" => ["Ends with", "Termina com", "İle biter"],
+    "original" => ["Original version (spokwn):", "Versão original (spokwn):", "Orijinal sürüm (spokwn):"],
     "duvodesc" => ["Turkish translation, Rust port", "Tradução para turco, port para Rust", "Türkçe çeviri, Rust çevirisi"],
     "journalid" => ["Journal ID:", "ID do journal:", "Günlük kimliği:"],
     "maxsize" => ["Maximum size:", "Tamanho máximo:", "Maksimum boyut:"],

@@ -123,6 +123,9 @@ impl GridState {
             ui.memory_mut(|m| m.request_focus(search_id));
         }
         ui.horizontal(|ui| {
+            // One height for the text field, combo boxes and buttons so the
+            // row lines up; egui otherwise sizes each to its own content.
+            ui.spacing_mut().interact_size.y = 24.0;
             let edit = ui.add(
                 egui::TextEdit::singleline(&mut self.query)
                     .id(search_id)
