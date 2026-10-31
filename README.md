@@ -1,52 +1,51 @@
 # JournalTrace (Rust)
 
-Windows'ta hangi dosyanın **ne zaman oluşturulduğunu, silindiğini ya da adının değiştirildiğini** gösterir. Bunu NTFS'in kendi değişiklik kaydından (USN Journal) okur. Dosya silinmiş olsa bile kaydı durur.
+**English** | [Türkçe](README.tr.md)
 
-## İndir
-[Releases](https://github.com/duvofan/JournalTraceRust/releases) sayfasından **JournalTrace.exe**'yi indir. Kurulum yok, tek dosya. Açılırken yönetici izni ister.
+Shows **when files were created, deleted or renamed** on Windows. It reads this from NTFS's own change log (the USN Journal), so a record stays even after the file is deleted.
 
-## Kullanım
-1. **Sürücü → Tara** (ya da **Tüm sürücüleri tara**).
-2. Üstteki kutuya aradığını yaz; liste yazdıkça süzülür.
-3. Bir satıra **sağ tıkla**: dosyanın tüm geçmişini gör ya da Explorer'da göster.
+## Download
+Get **JournalTrace.exe** from the [Releases](https://github.com/duvofan/JournalTraceRust/releases) page. There is nothing to install; it's a single file. It asks for administrator rights when it opens.
 
-Günlük yakın zamanda silinip yeniden oluşturulmuşsa üstte **kırmızı bir uyarı** çıkar. Bu, birinin izlerini temizlemeye çalıştığını gösterebilir.
+## How to use
+1. **Drive → Scan** (or **Scan all drives**).
+2. Type what you're looking for in the box at the top. The list filters as you type.
+3. **Right-click** a row to see the file's full history or show it in Explorer.
 
-## Arama örnekleri
-| Yaz | Bulur |
+If the journal was deleted and recreated recently, a **red warning** appears at the top. This can mean someone tried to clear their tracks.
+
+## Search examples
+| Type | Finds |
 |---|---|
-| `.exe` | Adında `.exe` geçen her şey |
-| `ad:.pf;neden:silme` | Silinen Prefetch (`.pf`) dosyaları |
-| `ad:.exe!!svchost` | `.exe` olup `svchost` olmayanlar |
-| `ad:.exe\|\|.dll` | `.exe` ya da `.dll` |
-| `ad:=svchost.exe` | Adı tam olarak `svchost.exe` olanlar |
-| `sürücü:D;neden:oluşturma` | D: sürücüsünde oluşturulan dosyalar |
+| `.exe` | Everything with `.exe` in its name |
+| `name:.pf;reason:delete` | Deleted Prefetch (`.pf`) files |
+| `name:.exe!!svchost` | `.exe` files that aren't `svchost` |
+| `name:.exe\|\|.dll` | `.exe` or `.dll` |
+| `name:=svchost.exe` | Files named exactly `svchost.exe` |
+| `drive:D;reason:create` | Files created on drive D: |
 
-Arama kutusunun yanından eşleşme türünü de seçebilirsin: **İçerir**, **Tam eşleşme**, **İle başlar**, **İle biter**.
+Next to the search box you can also choose how to match: **Contains**, **Exact match**, **Starts with** or **Ends with**.
 
-## Özellikler
-- Tek sürücü ya da tüm sürücüler, tek tabloda
-- Canlı izleme: yeni değişiklikler anında listeye düşer
-- Dosya geçmişi: ad değişiklikleri (`a.exe → b.tmp`) ve dosyanın ne kadar yaşadığı
-- "Kısa ömürlü" filtresi: 1 dakika içinde oluşturulup silinen dosyalar
-- HTML, CSV ya da JSON olarak dışa aktarma
-- Ctrl+C, Ctrl+A, Ctrl+F kısayolları; Ctrl + fare tekerleği ile yakınlaştırma
-- Türkçe, English, Português. Windows dili neyse onunla açılır.
+## Features
+- One drive or all drives, in a single table
+- Live monitoring: new changes appear in the list right away
+- File history: renames (`a.exe → b.tmp`) and how long the file existed
+- "Short-lived" filter: files created and deleted within a minute
+- Export to HTML, CSV or JSON
+- Ctrl+C, Ctrl+A, Ctrl+F shortcuts; Ctrl + mouse wheel to zoom
+- English, Türkçe, Português. It opens in your Windows language.
 
-## Kaynaktan derleme
-[Rust](https://rustup.rs) kurulu olmalı:
+## Building from source
+You need [Rust](https://rustup.rs):
 ```
 cargo build --release
 ```
-Exe `target\release\JournalTrace.exe` konumuna çıkar. Yönetici izni olmadan, sahte veriyle denemek için: `cargo run --release --example demo`
+The exe ends up in `target\release\JournalTrace.exe`. To try it with sample data and no administrator rights: `cargo run --release --example demo`
 
-## Teşekkürler
-- [spokwn/JournalTrace](https://github.com/spokwn/JournalTrace): 1.2 sürümü ve gelişmiş filtreler
-- [ponei/JournalTrace](https://github.com/ponei/JournalTrace): orijinal program
-- nolanblew ve StCroixSkipper: Win32 API sarmalayıcıları
+## Credits
+- [spokwn/JournalTrace](https://github.com/spokwn/JournalTrace): version 1.2 and the advanced filters
+- [ponei/JournalTrace](https://github.com/ponei/JournalTrace): the original program
+- nolanblew and StCroixSkipper: Win32 API wrappers
 
-## English
-JournalTrace reads the NTFS USN Journal and shows when files were created, deleted or renamed. Download **JournalTrace.exe** from Releases and run it as administrator. Then use Drive → Scan. It warns you when the journal was recreated recently, which can mean someone cleared it.
-
-## Lisans
-GPL-3.0, orijinal projeyle aynı. Ayrıntılar: [LICENSE](LICENSE).
+## License
+GPL-3.0, same as the original project. See [LICENSE](LICENSE).
