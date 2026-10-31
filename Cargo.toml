@@ -1,0 +1,32 @@
+[package]
+name = "journaltrace"
+version = "2.0.0"
+edition = "2021"
+license = "GPL-3.0-only"
+description = "Parses NTFS USN Journal entries in a simple user interface"
+repository = "https://github.com/ponei/JournalTrace"
+
+[lib]
+name = "journaltrace"
+path = "src/lib.rs"
+
+[[bin]]
+name = "JournalTrace"
+path = "src/main.rs"
+test = false
+
+[dependencies]
+eframe = "0.31"
+egui_extras = "0.31"
+image = { version = "0.25", default-features = false, features = ["png"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+rfd = "0.15"
+
+[build-dependencies]
+embed-manifest = "1.4"
+winresource = "0.1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
