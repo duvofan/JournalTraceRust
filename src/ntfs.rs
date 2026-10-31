@@ -73,6 +73,16 @@ extern "system" {
     fn GetDiskFreeSpaceExW(dir: *const u16, avail: *mut u64, total: *mut u64, free: *mut u64) -> i32;
 }
 
+#[link(name = "kernel32")]
+extern "system" {
+    fn GetUserDefaultUILanguage() -> u16;
+}
+
+/// LANGID of the Windows display language.
+pub fn ui_language() -> u16 {
+    unsafe { GetUserDefaultUILanguage() }
+}
+
 #[link(name = "shell32")]
 extern "system" {
     fn IsUserAnAdmin() -> i32;

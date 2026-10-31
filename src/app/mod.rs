@@ -200,7 +200,8 @@ impl App {
             .find(|d| d.letter == 'C')
             .map(|d| d.letter);
 
-        let lang = Lang::default();
+        // Same language as Windows: Turkish, Portuguese, otherwise English.
+        let lang = Lang::from_langid(ntfs::ui_language());
         let mut app = App {
             lang,
             layout: Layout::None,

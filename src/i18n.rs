@@ -2,14 +2,24 @@
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub enum Lang {
+    #[default]
     En,
     Pt,
-    #[default]
     Tr,
 }
 
 impl Lang {
     pub const ALL: [Lang; 3] = [Lang::En, Lang::Pt, Lang::Tr];
+
+    /// Language for a Windows LANGID (e.g. from GetUserDefaultUILanguage):
+    /// Turkish and Portuguese get their own, everything else English.
+    pub fn from_langid(langid: u16) -> Lang {
+        match langid & 0x3FF {
+            0x1F => Lang::Tr, // LANG_TURKISH
+            0x16 => Lang::Pt, // LANG_PORTUGUESE (Brazil and Portugal)
+            _ => Lang::En,
+        }
+    }
 
     pub fn native_name(self) -> &'static str {
         match self {
@@ -368,7 +378,13 @@ mod tests {
 
     #[test]
     fn lang_basics() {
-        assert_eq!(Lang::default(), Lang::Tr);
+        assert_eq!(Lang::default(), Lang::En);
+        assert_eq!(Lang::from_langid(0x041F), Lang::Tr); // tr-TR
+        assert_eq!(Lang::from_langid(0x0416), Lang::Pt); // pt-BR
+        assert_eq!(Lang::from_langid(0x0816), Lang::Pt); // pt-PT
+        assert_eq!(Lang::from_langid(0x0409), Lang::En); // en-US
+        assert_eq!(Lang::from_langid(0x0809), Lang::En); // en-GB
+        assert_eq!(Lang::from_langid(0x0407), Lang::En); // de-DE falls back to English
         assert_eq!(Lang::En.native_name(), "English");
         assert_eq!(Lang::Pt.native_name(), "Português");
         assert_eq!(Lang::Tr.native_name(), "Türkçe");

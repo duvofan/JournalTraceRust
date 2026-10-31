@@ -26,7 +26,7 @@ cargo run --release --example demo
 - **Directory Tree**: a directory tree on the left and the changes in the selected directory on the right.
 - Right-click menu: copy the cell, show file information, and open the file's location in Explorer with the file already selected.
 - Credits window and background picture.
-- Turkish (the default), English and Portuguese.
+- Turkish, English and Portuguese. It starts in the Windows display language (Turkish or Portuguese), otherwise English.
 
 ### New in this version
 - **All drives**: scan every NTFS drive into one table, with a Drive column (Drive > Scan all drives).
