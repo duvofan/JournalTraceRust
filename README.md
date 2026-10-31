@@ -31,11 +31,11 @@ cargo run --release --example demo
 ### New in this version
 - **All drives**: scan every NTFS drive into one table, with a Drive column (Drive > Scan all drives).
 - **Live monitoring**: new journal records are added to the list every second (Drive > Live monitoring).
-- **Timeline**: a changes-per-hour chart above the grid. Click a bar to filter to that time span; click it again to clear the filter.
+- **Timeline** (off by default, Layout > Timeline): a changes-per-hour chart above the grid. Click a bar to filter to that time span; click it again to clear the filter.
 - **File history**: the file information window shows the file's rename chain (`a.exe → b.tmp`), its creation and deletion times, and how long it lived.
 - **Short-lived filter**: files that were created and deleted within a minute.
 - **Search as you type**, with no need to press Enter.
-- **Export** to CSV, JSON or HTML. The HTML report is a single dark-themed page with filtering and sorting. You can export everything shown or only the selected rows.
+- **Export** to HTML (default), CSV or JSON. The HTML report is a single dark-themed page with filtering and sorting. You can export everything shown or only the selected rows.
 - **Multi-row selection**: Ctrl+click and Shift+click. Ctrl+C copies the selected rows as tab-separated text; Ctrl+A selects all; Ctrl+F jumps to the search box.
 - **Zoom**: Ctrl +/−, or Ctrl + mouse wheel. Ctrl+0 resets it.
 - Directories that no longer exist are rebuilt from the journal's own records (shown in italics).
@@ -50,8 +50,10 @@ cargo run --release --example demo
 - **Multiple columns**: `name:.pf;reason:delete;drive:D`
 - Columns: `usn`, `name`, `date`, `reason`, `directory`, `drive`. Turkish and Portuguese names also work, e.g. `ad:`, `tarih:`, `neden:`, `dizin:`, `sürücü:`.
 - Paths (`C:\Windows\...`) automatically search the directory column.
+- **Match mode**: the box next to the column picker chooses *Contains* (default), *Exact match*, *Starts with* or *Ends with*.
+- A term with a leading `=` is always an exact match: `name:=svchost.exe`.
 
-Matching is always a plain, case-insensitive substring match. Characters like `'`, `[`, `%` and `*` are searched as written.
+Matching is case-insensitive and never uses wildcards: characters like `'`, `[`, `%` and `*` are searched as written.
 
 ## Bugs fixed from the C# version
 - The reason check boxes stopped working in Portuguese. They now test the reason flag instead of English text.

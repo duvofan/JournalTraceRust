@@ -207,7 +207,7 @@ impl App {
             is_admin: ntfs::is_admin(),
             selected_drive: default_drive,
             all_drives: false,
-            show_timeline: true,
+            show_timeline: false,
             drive_window: DriveWindow::default(),
             about_window: AboutWindow::new(&cc.egui_ctx),
             info_windows: Vec::new(),
@@ -362,10 +362,10 @@ impl App {
     fn export(&mut self, only_selected: bool) {
         let Some(data) = &self.data else { return };
         let Some(path) = rfd::FileDialog::new()
-            .set_file_name("journal.csv")
+            .set_file_name("journal.html")
+            .add_filter("HTML", &["html"])
             .add_filter("CSV", &["csv"])
             .add_filter("JSON", &["json"])
-            .add_filter("HTML", &["html"])
             .save_file()
         else {
             return;

@@ -4,7 +4,7 @@
 use super::table::{self, col_label, RowRef, Selection, Sort, TableOpts};
 use super::timeline::Timeline;
 use super::{Actions, Data, Reasons};
-use crate::filter::{Column, Filter};
+use crate::filter::{Column, Filter, MatchMode};
 use crate::i18n::{t, Lang};
 use crate::model;
 use eframe::egui;
@@ -28,6 +28,7 @@ const TYPE_DELAY: f64 = 0.3;
 pub(crate) struct GridState {
     query: String,
     column: Option<Column>,
+    match_mode: MatchMode,
     checks: [bool; 5],
     short_lived: bool,
     /// [start, end) in FILETIME ticks, set by clicking the timeline.
@@ -45,6 +46,7 @@ impl Default for GridState {
         GridState {
             query: String::new(),
             column: Some(Column::Name), // C# default was "name"
+            match_mode: MatchMode::Contains,
             checks: [false; 5],
             short_lived: false,
             time_range: None,
@@ -53,7 +55,7 @@ impl Default for GridState {
             sort: Sort::default(),
             selection: Selection::default(),
             timeline: Timeline::default(),
-            show_timeline: true,
+            show_timeline: false,
         }
     }
 }
@@ -92,7 +94,7 @@ impl GridState {
     }
 
     fn matching(&self, data: &Data, reasons: &Reasons, range: std::ops::Range<u32>) -> Vec<u32> {
-        let filter = Filter::parse(&self.query, self.column);
+        let filter = Filter::parse_with(&self.query, self.column, self.match_mode);
         let required: Vec<u32> =
             CHECKS.iter().zip(self.checks).filter(|(_, on)| *on).map(|((flag, _), _)| *flag).collect();
         let r = &data.result;
@@ -138,6 +140,11 @@ impl GridState {
                 run |= ui.selectable_value(&mut self.column, None, t(lang, "allcolumns")).clicked();
                 for c in [Column::Name, Column::Date, Column::Reason, Column::Directory, Column::Drive, Column::Usn] {
                     run |= ui.selectable_value(&mut self.column, Some(c), col_label(lang, c)).clicked();
+                }
+            });
+            egui::ComboBox::from_id_salt("match_mode").selected_text(mode_label(lang, self.match_mode)).show_ui(ui, |ui| {
+                for m in MatchMode::ALL {
+                    run |= ui.selectable_value(&mut self.match_mode, m, mode_label(lang, m)).clicked();
                 }
             });
             if ui.button(t(lang, "search")).clicked() {
@@ -212,6 +219,18 @@ impl GridState {
             table::sort_rows(&mut self.rows, data, reasons, self.sort);
         }
     }
+}
+
+fn mode_label(lang: Lang, mode: MatchMode) -> &'static str {
+    t(
+        lang,
+        match mode {
+            MatchMode::Contains => "contains",
+            MatchMode::Exact => "exact",
+            MatchMode::StartsWith => "startswith",
+            MatchMode::EndsWith => "endswith",
+        },
+    )
 }
 
 /// "dd/mm/yyyy HH:MM" for chips and the timeline.

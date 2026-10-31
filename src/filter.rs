@@ -55,6 +55,21 @@ impl Column {
     }
 }
 
+/// How a search term is compared with a cell. A term written with a leading
+/// `=` (e.g. `name:=svchost.exe`) is always an exact match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum MatchMode {
+    #[default]
+    Contains,
+    Exact,
+    StartsWith,
+    EndsWith,
+}
+
+impl MatchMode {
+    pub const ALL: [MatchMode; 4] = [MatchMode::Contains, MatchMode::Exact, MatchMode::StartsWith, MatchMode::EndsWith];
+}
+
 pub trait FilterRow {
     fn field(&self, col: Column) -> Cow<'_, str>;
 }
@@ -77,6 +92,7 @@ struct Term {
     needle: String,
     ascii: bool,
     negate: bool,
+    kind: MatchMode,
 }
 
 #[derive(Clone, Debug)]
@@ -113,18 +129,24 @@ fn fold(s: &str) -> String {
     out
 }
 
-fn term(part: &str, negate: bool) -> Term {
-    let needle = fold(part.trim());
+fn term(part: &str, negate: bool, mode: MatchMode) -> Term {
+    let part = part.trim();
+    let (part, kind) = match part.strip_prefix('=') {
+        Some(rest) => (rest.trim(), MatchMode::Exact),
+        None => (part, mode),
+    };
+    let needle = fold(part);
     let ascii = needle.is_ascii();
     Term {
         needle,
         ascii,
         negate,
+        kind,
     }
 }
 
 /// Build the (mode, terms) of a value, or None when it has no usable parts.
-fn parse_value(value: &str) -> Option<(Mode, Vec<Term>)> {
+fn parse_value(value: &str, kind: MatchMode) -> Option<(Mode, Vec<Term>)> {
     let value = value.trim();
     let nonempty = |p: &&str| !p.trim().is_empty();
     let (mode, terms): (Mode, Vec<Term>) = if value.contains("!!") {
@@ -132,7 +154,7 @@ fn parse_value(value: &str) -> Option<(Mode, Vec<Term>)> {
             .split("!!")
             .enumerate()
             .filter(|(_, p)| nonempty(p))
-            .map(|(i, p)| term(p, i != 0))
+            .map(|(i, p)| term(p, i != 0, kind))
             .collect();
         (Mode::All, terms)
     } else if value.contains("&&") {
@@ -141,7 +163,7 @@ fn parse_value(value: &str) -> Option<(Mode, Vec<Term>)> {
             value
                 .split("&&")
                 .filter(nonempty)
-                .map(|p| term(p, false))
+                .map(|p| term(p, false, kind))
                 .collect(),
         )
     } else if value.contains("||") {
@@ -150,11 +172,11 @@ fn parse_value(value: &str) -> Option<(Mode, Vec<Term>)> {
             value
                 .split("||")
                 .filter(nonempty)
-                .map(|p| term(p, false))
+                .map(|p| term(p, false, kind))
                 .collect(),
         )
     } else {
-        (Mode::All, vec![term(value, false)])
+        (Mode::All, vec![term(value, false, kind)])
     };
     let terms: Vec<Term> = terms.into_iter().filter(|t| !t.needle.is_empty()).collect();
     if terms.is_empty() {
@@ -194,10 +216,28 @@ impl Cond {
     fn eval(&self, hay: &str) -> bool {
         if hay.is_ascii() {
             // Lowercasing ASCII yields ASCII, so a non-ASCII needle cannot match.
-            self.combine(|t| t.ascii && ascii_contains(hay.as_bytes(), t.needle.as_bytes()))
+            let h = hay.as_bytes();
+            self.combine(|t| {
+                let n = t.needle.as_bytes();
+                t.ascii
+                    && match t.kind {
+                        MatchMode::Contains => ascii_contains(h, n),
+                        MatchMode::Exact => h.eq_ignore_ascii_case(n),
+                        MatchMode::StartsWith => h.len() >= n.len() && h[..n.len()].eq_ignore_ascii_case(n),
+                        MatchMode::EndsWith => h.len() >= n.len() && h[h.len() - n.len()..].eq_ignore_ascii_case(n),
+                    }
+            })
         } else {
             let lowered = fold(hay);
-            self.combine(|t| lowered.contains(t.needle.as_str()))
+            self.combine(|t| {
+                let n = t.needle.as_str();
+                match t.kind {
+                    MatchMode::Contains => lowered.contains(n),
+                    MatchMode::Exact => lowered == n,
+                    MatchMode::StartsWith => lowered.starts_with(n),
+                    MatchMode::EndsWith => lowered.ends_with(n),
+                }
+            })
         }
     }
 
@@ -232,6 +272,11 @@ impl Filter {
     /// `default_column`: column used for bare values (no `col:` prefix).
     /// `None` = match if ANY column matches.
     pub fn parse(text: &str, default_column: Option<Column>) -> Filter {
+        Filter::parse_with(text, default_column, MatchMode::Contains)
+    }
+
+    /// Like `parse`, with every term compared using `mode`.
+    pub fn parse_with(text: &str, default_column: Option<Column>, mode: MatchMode) -> Filter {
         let mut conds = Vec::new();
         for seg in text.trim().split(';') {
             let seg = seg.trim();
@@ -245,7 +290,7 @@ impl Filter {
                 },
                 None => (bare_target(seg, default_column), seg),
             };
-            if let Some((mode, terms)) = parse_value(value) {
+            if let Some((mode, terms)) = parse_value(value, mode) {
                 conds.push(Cond {
                     target,
                     mode,
@@ -563,5 +608,28 @@ mod tests {
             .collect();
         let f = Filter::parse("name:.exe||.sys;dir:windows", None);
         assert_eq!(rows.iter().filter(|r| f.matches(*r)).count(), 0);
+    }
+
+    #[test]
+    fn match_modes() {
+        let r = row("svchost.exe", "File create", "C:\\Windows");
+        let m = |q: &str, mode| Filter::parse_with(q, Some(Column::Name), mode).matches(&r);
+        assert!(m("host", MatchMode::Contains));
+        assert!(!m("host", MatchMode::Exact));
+        assert!(m("SVCHOST.EXE", MatchMode::Exact));
+        assert!(m("svc", MatchMode::StartsWith));
+        assert!(!m("host", MatchMode::StartsWith));
+        assert!(m(".exe", MatchMode::EndsWith));
+        assert!(!m(".dll", MatchMode::EndsWith));
+        // A leading '=' forces exact whatever the mode.
+        assert!(!m("=svchost", MatchMode::Contains));
+        assert!(m("=svchost.exe", MatchMode::Contains));
+        assert!(m("name:=svchost.exe", MatchMode::Contains));
+        // Operators still work per term.
+        assert!(m("svchost.exe||x.dll", MatchMode::Exact));
+        assert!(!m("svchost.exe!!svchost.exe", MatchMode::Exact));
+        let tr = row("ÇAĞRI.exe", "", "");
+        assert!(Filter::parse_with("çağrı.exe", Some(Column::Name), MatchMode::Exact).matches(&tr));
+        assert!(Filter::parse_with("çağ", Some(Column::Name), MatchMode::StartsWith).matches(&tr));
     }
 }
