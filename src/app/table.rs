@@ -120,16 +120,36 @@ fn cmp_ci(a: &str, b: &str) -> Ordering {
 
 pub(crate) fn sort_rows(rows: &mut [u32], data: &Data, reasons: &Reasons, sort: Sort) {
     let entries = &data.result.entries;
+    // Text columns: lowercase each value once instead of on every comparison.
+    // Keys end with the USN, so descending is exactly the ascending order reversed.
+    let text_key: Option<&dyn Fn(&Entry) -> String> = match sort.col {
+        Column::Name => Some(&|e: &Entry| e.name.to_lowercase()),
+        Column::Directory => Some(&|e: &Entry| data.result.dir_path(e).to_lowercase()),
+        _ => None,
+    };
+    if let Some(key) = text_key {
+        rows.sort_by_cached_key(|&i| {
+            let e = &entries[i as usize];
+            (key(e), e.usn)
+        });
+        if !sort.asc {
+            rows.reverse();
+        }
+        return;
+    }
+    // Reason: rank each distinct mask by its text once.
+    let mut masks: Vec<u32> = reasons.masks().collect();
+    masks.sort_by(|a, b| reasons.get(*a).cmp(reasons.get(*b)));
+    let rank: std::collections::HashMap<u32, usize> = masks.into_iter().enumerate().map(|(i, m)| (m, i)).collect();
+
     rows.sort_by(|&a, &b| {
         let (ea, eb) = (&entries[a as usize], &entries[b as usize]);
         let o = match sort.col {
             Column::Usn => ea.usn.cmp(&eb.usn),
-            Column::Name => cmp_ci(&ea.name, &eb.name),
+            Column::Name => cmp_ci(&ea.name, &eb.name), // handled above
             Column::Date => ea.timestamp.cmp(&eb.timestamp),
-            Column::Reason => reasons.get(ea.reason).cmp(reasons.get(eb.reason)),
-            Column::Directory => {
-                cmp_ci(data.result.dir_path(ea), data.result.dir_path(eb))
-            }
+            Column::Reason => rank.get(&ea.reason).cmp(&rank.get(&eb.reason)),
+            Column::Directory => cmp_ci(data.result.dir_path(ea), data.result.dir_path(eb)), // handled above
             Column::Drive => ea.vol.cmp(&eb.vol),
         }
         .then(ea.usn.cmp(&eb.usn));

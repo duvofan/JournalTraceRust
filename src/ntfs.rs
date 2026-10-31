@@ -76,6 +76,13 @@ extern "system" {
 #[link(name = "kernel32")]
 extern "system" {
     fn GetUserDefaultUILanguage() -> u16;
+    fn GetTickCount64() -> u64;
+}
+
+/// When this PC was last turned on, as a FILETIME.
+pub fn boot_time() -> i64 {
+    let up_ms = unsafe { GetTickCount64() } as i64;
+    crate::model::now_filetime() - up_ms * 10_000
 }
 
 /// LANGID of the Windows display language.

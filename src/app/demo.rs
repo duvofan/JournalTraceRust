@@ -100,7 +100,8 @@ pub(crate) fn generate(count: usize) -> ScanOutput {
             }
         }
         let journal = JournalInfo {
-            journal_id: 0x01DA_0000_1234_5678 + v as u64,
+            // C: looks normal; D: was "recreated" an hour ago to show the warning.
+            journal_id: if v == 0 { 133_500_000_000_000_000 } else { (crate::model::now_filetime() - 36_000_000_000) as u64 },
             first_usn: 10_000,
             next_usn: 10_000 + entries.len() as i64 * 96,
             maximum_size: 32 * 1024 * 1024,

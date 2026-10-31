@@ -72,11 +72,14 @@ pub(crate) struct Data {
     /// Create-to-delete time of files that were both created and deleted
     /// inside the journal, for the "short-lived" filter.
     lifetimes: HashMap<Ref, i64>,
+    /// Cached so the status bar doesn't walk every entry each frame.
+    oldest: Option<i64>,
 }
 
 impl Data {
     fn new(result: ScanResult, volumes: Vec<Arc<Volume>>) -> Data {
-        let mut data = Data { result, volumes, lifetimes: HashMap::new() };
+        let oldest = result.oldest_timestamp();
+        let mut data = Data { result, volumes, lifetimes: HashMap::new(), oldest };
         let keys: Vec<Ref> = data.result.by_file.keys().copied().collect();
         data.update_lifetimes(keys);
         data
@@ -128,6 +131,10 @@ impl Reasons {
         }
     }
 
+    pub fn masks(&self) -> impl Iterator<Item = u32> + '_ {
+        self.map.keys().copied()
+    }
+
     pub fn get(&self, mask: u32) -> &str {
         self.map.get(&mask).map(String::as_str).unwrap_or("")
     }
@@ -153,6 +160,7 @@ struct App {
     lang: Lang,
     layout: Layout,
     is_admin: bool,
+    boot_time: i64,
 
     selected_drive: Option<char>,
     all_drives: bool,
@@ -206,6 +214,7 @@ impl App {
             lang,
             layout: Layout::None,
             is_admin: ntfs::is_admin(),
+            boot_time: ntfs::boot_time(),
             selected_drive: default_drive,
             all_drives: false,
             show_timeline: false,
@@ -325,6 +334,11 @@ impl App {
             let touched: Vec<Ref> =
                 data.result.entries[range.start as usize..].iter().map(|e| e.file_key()).collect();
             data.update_lifetimes(touched);
+            let new_oldest = data.result.entries[range.start as usize..].iter().map(|e| e.timestamp).min();
+            data.oldest = match (data.oldest, new_oldest) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            };
             self.reasons.add(&data.result.entries[range.start as usize..]);
             self.grid.append(data, &self.reasons, range.clone());
             if let Some(tree) = &mut self.tree {
@@ -520,6 +534,47 @@ impl App {
         });
     }
 
+    /// Red/amber banner when a scanned journal was created suspiciously late.
+    fn journal_warning(&self, ctx: &egui::Context) {
+        let Some(data) = &self.data else { return };
+        let lang = self.lang;
+        let warnings: Vec<(char, model::JournalAge, i64)> = data
+            .result
+            .volumes
+            .iter()
+            .filter_map(|v| {
+                let age = v.journal.age(Some(self.boot_time));
+                (age != model::JournalAge::Normal).then(|| (v.letter, age, v.journal.created().unwrap_or(0)))
+            })
+            .collect();
+        if warnings.is_empty() {
+            return;
+        }
+        let red = warnings.iter().any(|w| w.1 == model::JournalAge::AfterBoot);
+        let (fill, text) = if red {
+            (egui::Color32::from_rgb(110, 24, 24), egui::Color32::from_rgb(255, 225, 225))
+        } else {
+            (egui::Color32::from_rgb(100, 72, 10), egui::Color32::from_rgb(255, 238, 200))
+        };
+        egui::TopBottomPanel::top("journal_warning")
+            .frame(egui::Frame::new().fill(fill).inner_margin(egui::Margin::symmetric(10, 6)))
+            .show(ctx, |ui| {
+                for (letter, age, created) in &warnings {
+                    let key = if *age == model::JournalAge::AfterBoot { "warnafterboot" } else { "warnrecent" };
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "⚠  {letter}:\\   {}   ({} {})",
+                            t(lang, key),
+                            t(lang, "journalcreated"),
+                            model::format_filetime(*created)
+                        ))
+                        .color(text)
+                        .strong(),
+                    );
+                }
+            });
+    }
+
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
         ui.horizontal_wrapped(|ui| {
@@ -530,7 +585,8 @@ impl App {
                 ui.strong(value);
                 ui.separator();
             };
-            field(ui, "countfirst", r.and_then(|r| r.oldest_timestamp()).map(model::format_filetime).unwrap_or_else(dots));
+            let oldest = self.data.as_ref().and_then(|d| d.oldest);
+            field(ui, "countfirst", oldest.map(model::format_filetime).unwrap_or_else(dots));
             field(ui, "countall", r.map(|r| r.entries.len().to_string()).unwrap_or_else(dots));
             field(ui, "countfiles", r.map(|r| r.file_count().to_string()).unwrap_or_else(dots));
             field(ui, "countdirectories", r.map(|r| r.dirs.len().to_string()).unwrap_or_else(dots));
@@ -542,7 +598,11 @@ impl App {
                         r.volumes.iter().map(|v| format!("{}: {}", v.letter, f(v))).collect::<Vec<_>>().join("  ")
                     }
                 };
-                field(ui, "journalid", per_drive(&|v| format!("{:#x}", v.journal.journal_id)));
+                field(
+                    ui,
+                    "journalcreated",
+                    per_drive(&|v| v.journal.created().map(model::format_filetime).unwrap_or_else(|| "?".into())),
+                );
                 field(ui, "maxsize", per_drive(&|v| format!("{:.1} MB", v.journal.maximum_size as f64 / 1_048_576.0)));
             }
             let drive_text = if self.all_drives {
@@ -756,6 +816,7 @@ impl eframe::App for App {
         }
 
         egui::TopBottomPanel::top("menu").show(ctx, |ui| self.menu_bar(ui));
+        self.journal_warning(ctx);
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| self.status_bar(ui));
 
         let mut actions = Actions::default();

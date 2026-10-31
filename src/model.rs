@@ -86,6 +86,53 @@ pub struct JournalInfo {
     pub allocation_delta: u64,
 }
 
+/// How suspicious a journal's creation time looks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JournalAge {
+    /// Created after the PC was last turned on: the journal is normally
+    /// created when Windows is installed, so this usually means it was
+    /// deleted and recreated (e.g. `fsutil usn deletejournal`).
+    AfterBoot,
+    /// Created in the last few days.
+    Recent,
+    Normal,
+}
+
+const DAY: i64 = 86_400 * 10_000_000;
+
+impl JournalInfo {
+    /// When the journal was created. NTFS uses the creation time (a
+    /// FILETIME) as the journal ID; None if the ID doesn't look like one.
+    pub fn created(&self) -> Option<i64> {
+        const YEAR_2000: i64 = 125_911_584_000_000_000;
+        let ft = self.journal_id as i64;
+        (ft > YEAR_2000 && ft < now_filetime() + DAY).then_some(ft)
+    }
+
+    pub fn age(&self, boot_time: Option<i64>) -> JournalAge {
+        journal_age(self.created(), now_filetime(), boot_time)
+    }
+}
+
+fn journal_age(created: Option<i64>, now: i64, boot_time: Option<i64>) -> JournalAge {
+    let Some(created) = created else { return JournalAge::Normal };
+    if boot_time.is_some_and(|boot| created > boot) {
+        JournalAge::AfterBoot
+    } else if now - created < 3 * DAY {
+        JournalAge::Recent
+    } else {
+        JournalAge::Normal
+    }
+}
+
+/// Current time as a FILETIME.
+pub fn now_filetime() -> i64 {
+    let unix = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos() as i64 / 100);
+    unix + 11_644_473_600 * 10_000_000
+}
+
 #[derive(Clone, Debug)]
 pub struct VolumeInfo {
     pub letter: char,
@@ -246,6 +293,18 @@ mod tests {
         assert_eq!(story.names, vec!["a.exe", "b.tmp"]);
         assert_eq!(story.lifetime(), Some(50_000_000));
         assert_eq!(format_duration(50_000_000), "5 s");
+    }
+
+    #[test]
+    fn journal_age_rules() {
+        let now = 134_000_000_000_000_000;
+        let boot = now - 2 * 3600 * 10_000_000;
+        assert_eq!(journal_age(Some(now - 3600 * 10_000_000), now, Some(boot)), JournalAge::AfterBoot);
+        assert_eq!(journal_age(Some(now - DAY), now, Some(boot)), JournalAge::Recent);
+        assert_eq!(journal_age(Some(now - 30 * DAY), now, Some(boot)), JournalAge::Normal);
+        assert_eq!(journal_age(None, now, Some(boot)), JournalAge::Normal);
+        let info = JournalInfo { journal_id: 42, ..Default::default() };
+        assert_eq!(info.created(), None);
     }
 
     #[test]

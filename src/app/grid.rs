@@ -98,21 +98,33 @@ impl GridState {
         let required: Vec<u32> =
             CHECKS.iter().zip(self.checks).filter(|(_, on)| *on).map(|((flag, _), _)| *flag).collect();
         let r = &data.result;
-        range
-            .filter(|&i| {
-                let e = &r.entries[i as usize];
-                required.iter().all(|f| e.reason & f != 0)
-                    && self.time_range.is_none_or(|(a, b)| e.timestamp >= a && e.timestamp < b)
-                    && (!self.short_lived || data.lifetime(e).is_some_and(|l| l <= SHORT_LIVED))
-                    && (filter.is_empty()
-                        || filter.matches(&RowRef {
-                            e,
-                            dir: r.dir_path(e),
-                            reason: reasons.get(e.reason),
-                            drive: r.drive(e),
-                        }))
-            })
-            .collect()
+        let keep = |i: &u32| {
+            let e = &r.entries[*i as usize];
+            required.iter().all(|f| e.reason & f != 0)
+                && self.time_range.is_none_or(|(a, b)| e.timestamp >= a && e.timestamp < b)
+                && (!self.short_lived || data.lifetime(e).is_some_and(|l| l <= SHORT_LIVED))
+                && (filter.is_empty()
+                    || filter.matches(&RowRef { e, dir: r.dir_path(e), reason: reasons.get(e.reason), drive: r.drive(e) }))
+        };
+
+        // Large scans: split across CPU cores, keeping the original order.
+        let len = (range.end - range.start) as usize;
+        let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(16);
+        if len < 50_000 || threads < 2 {
+            return range.filter(keep).collect();
+        }
+        let chunk = len.div_ceil(threads) as u32;
+        std::thread::scope(|s| {
+            let keep = &keep;
+            let parts: Vec<_> = (0..threads as u32)
+                .map(|k| {
+                    let start = (range.start + k * chunk).min(range.end);
+                    let end = (start + chunk).min(range.end);
+                    s.spawn(move || (start..end).filter(keep).collect::<Vec<u32>>())
+                })
+                .collect();
+            parts.into_iter().flat_map(|h| h.join().unwrap()).collect()
+        })
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, lang: Lang, data: &Data, reasons: &Reasons, actions: &mut Actions) {
